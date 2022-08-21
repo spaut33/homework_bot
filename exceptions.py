@@ -1,6 +1,3 @@
-import sys
-
-
 class EnvironmentSetupError(Exception):
     """Ошибка в конфигурации переменных окружения"""
 

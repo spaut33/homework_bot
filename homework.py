@@ -164,6 +164,7 @@ def main():
         try:
             response = get_api_answer(current_timestamp)
             homeworks = check_response(response)
+
             if homeworks:
                 send_message(bot, parse_status(homeworks[0]))
 

@@ -115,7 +115,7 @@ def check_response(response):
     if not isinstance(homeworks, list):
         logger.error(RESPONSE_NOT_LIST_ERROR)
         raise TypeError(RESPONSE_NOT_LIST_ERROR)
-    return homeworks
+    return homeworks[0]
 
 
 def parse_status(homework):
@@ -163,10 +163,8 @@ def main():
     while True:
         try:
             response = get_api_answer(current_timestamp)
-            homeworks = check_response(response)
 
-            if homeworks:
-                send_message(bot, parse_status(homeworks[0]))
+            send_message(bot, parse_status(check_response(response)))
 
             current_timestamp = response.get('current_date')
             time.sleep(RETRY_TIME)

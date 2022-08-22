@@ -2,10 +2,6 @@ class EnvironmentSetupError(Exception):
     """Ошибка в конфигурации переменных окружения"""
 
 
-class JSONDecodeError(Exception):
-    """Ошибка декодирования JSON-ответа от сервера."""
-
-
 class ResponseStatusError(Exception):
     """Ошибка в статусе домашней работы."""
 

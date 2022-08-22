@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import sys
@@ -42,7 +41,6 @@ ERROR = 'Сбой в работе программы: {error}'
 REQUEST_ERROR = 'Сбой при запросе к ендпоинту: {error}'
 HTTP_ERROR = 'Сбой при http-запросе к ендпоинту: {status_code}'
 TIMEOUT_ERROR = 'Таймаут http-запроса к ендпоинту: {error}'
-JSON_ERROR = 'Ошибка в расшифровке json: {error}'
 RESPONSE_ERROR = 'Неверные данные в ответе сервиса ЯП'
 RESPONSE_NOT_DICT_ERROR = (
     'Данные в ответе сервиса ЯП не представляют собой словарь'
@@ -87,16 +85,13 @@ def get_api_answer(current_timestamp):
         logger.error(REQUEST_ERROR.format(error=error))
     except requests.exceptions.Timeout as error:
         logger.error(TIMEOUT_ERROR.format(error=error))
+
     status_code = response.status_code
     if status_code != HTTPStatus.OK:
         logger.error(HTTP_ERROR.format(status_code=status_code))
         raise exceptions.HTTPError
 
-    try:
-        return dict(response.json())
-    except json.JSONDecodeError as error:
-        logger.error(JSON_ERROR.format(error=error))
-        raise exceptions.JSONDecodeError
+    return response.json()
 
 
 def check_response(response):
@@ -163,9 +158,7 @@ def main():
     while True:
         try:
             response = get_api_answer(current_timestamp)
-
             send_message(bot, parse_status(check_response(response)))
-
             current_timestamp = response.get('current_date')
             time.sleep(RETRY_TIME)
 

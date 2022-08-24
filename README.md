@@ -2,7 +2,7 @@
 
 
 
-<img alt="Python" src="https://img.shields.io/badge/Python-100%25-blue?style=flat&logo=python">
+<img alt="Python" src="https://img.shields.io/badge/Python-99%25-blue?style=flat&logo=python">
 
 ## Содержание
 

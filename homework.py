@@ -12,23 +12,15 @@ import exceptions
 
 load_dotenv()
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO,
-)
-
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 PRACTICUM_TOKEN = os.environ.get('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
-
 RETRY_TIME = 60
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
-HOMEWORK_STATUSES = {
+VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.',
@@ -36,27 +28,33 @@ HOMEWORK_STATUSES = {
 HW_STATUS_CHANGED = (
     'Изменился статус проверки работы "{homework_name}". {verdict}'
 )
-ENV_SETUP_ERROR = 'Переменные окружения .env сконфигурированы неверно'
+ENV_SETUP_ERROR = (
+    'Окружение сконфигурировано неверно, пропущены токены: {tokens}'
+)
 ERROR = 'Сбой в работе программы: {error}'
-REQUEST_ERROR = 'Сбой при запросе к ендпоинту: {error}'
-HTTP_ERROR = 'Сбой при http-запросе к ендпоинту: {status_code}'
-TIMEOUT_ERROR = 'Таймаут http-запроса к ендпоинту: {error}'
-RESPONSE_ERROR = 'Неверные данные в ответе сервиса ЯП'
-RESPONSE_NOT_DICT_ERROR = (
-    'Данные в ответе сервиса ЯП не представляют собой словарь'
+REQUEST_ERROR = (
+    'Сбой при запросе к ендпоинту: {error} - {endpoint} - {params}'
 )
-RESPONSE_NOT_LIST_ERROR = (
-    'Данные в ответе сервиса ЯП не представляют собой список'
+STATUS_CODE_ERROR = (
+    'Сбой при http-запросе к ендпоинту: {status_code} - {endpoint} - {params}'
 )
-NO_NAME_ERROR = 'В ответе сервиса ЯП не содержится имя домашней работы'
-NO_STATUS_ERROR = 'В ответе сервиса ЯП не содержится статуса домашней работы'
+DENY_OF_SERVICE = (
+    'В ответе ендпоинта содержится ошибка: {error_code} - {endpoint} - '
+    '- {params}'
+)
+NO_HOMEWORK_ERROR = 'В ответе сервиса ЯП нет данных о дамашних работах'
+RESPONSE_NOT_DICT_ERROR = 'В ответе ожидается словарь, а получен {got}'
+RESPONSE_NOT_LIST_ERROR = 'В ответе ожидается список, а получен {got}'
 UNKNOWN_STATUS_ERROR = (
-    'В ответе сервися ЯП содержится недокументированный статус домашней работы'
+    'В ответе сервися ЯП содержится недокументированный '
+    'статус домашней работы: {status}'
 )
 SUCCESS_SEND = 'Сообщение для юзера {chat_id} отправлено: {message}'
 ERROR_SEND = (
     'Сообщение {message} для юзера {chat_id} не было отправлено: {error}'
 )
+BOT_STARTED = 'Бот начал свою работу'
+ERROR_CODES = ('error', 'code')
 
 
 def send_message(bot, message):
@@ -67,7 +65,7 @@ def send_message(bot, message):
             SUCCESS_SEND.format(chat_id=TELEGRAM_CHAT_ID, message=message)
         )
     except Exception as error:
-        logger.error(
+        logger.exception(
             ERROR_SEND.format(
                 chat_id=TELEGRAM_CHAT_ID, message=message, error=error
             )
@@ -76,71 +74,69 @@ def send_message(bot, message):
 
 def get_api_answer(current_timestamp):
     """Отправляет запрос на ендпоинт и получает данные."""
-    timestamp = current_timestamp or int(time.time())
-    params = {'from_date': timestamp}
-
+    params = {'from_date': current_timestamp}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except requests.exceptions.RequestException as error:
-        logger.error(REQUEST_ERROR.format(error=error))
-    except requests.exceptions.Timeout as error:
-        logger.error(TIMEOUT_ERROR.format(error=error))
-
+        raise exceptions.RequestError(
+            REQUEST_ERROR.format(
+                error=error,
+                endpoint=ENDPOINT,
+                params=params
+            ))
     status_code = response.status_code
     if status_code != HTTPStatus.OK:
-        logger.error(HTTP_ERROR.format(status_code=status_code))
-        raise exceptions.HTTPError
+        raise exceptions.StatusCodeError(
+            STATUS_CODE_ERROR.format(
+                status_code=status_code,
+                endpoint=ENDPOINT,
+                params=params,
+            ))
+    json = response.json()
 
-    return response.json()
+    for error_code in ERROR_CODES:
+        if error_code in json:
+            raise exceptions.DenyOfServiceError(
+                DENY_OF_SERVICE.format(
+                    error_code=error_code,
+                    endpoint=ENDPOINT,
+                    params=params,
+                ))
+    return json
 
 
 def check_response(response):
     """Проверяет данные, полученные в ответе ендпоинта."""
     if not isinstance(response, dict):
-        logger.error(RESPONSE_NOT_DICT_ERROR)
-        raise TypeError(RESPONSE_NOT_DICT_ERROR)
-    if 'current_date' and 'homeworks' not in response:
-        logger.error(RESPONSE_ERROR)
-        raise exceptions.ApiResponseError
-    try:
-        homeworks = response.get('homeworks')
-    except KeyError:
-        logger.error(RESPONSE_ERROR)
-        raise KeyError(RESPONSE_ERROR)
+        raise TypeError(RESPONSE_NOT_DICT_ERROR.format(got=type(response)))
+    if 'homeworks' not in response:
+        raise ValueError(NO_HOMEWORK_ERROR)
+    homeworks = response.get('homeworks')
     if not isinstance(homeworks, list):
-        logger.error(RESPONSE_NOT_LIST_ERROR)
-        raise TypeError(RESPONSE_NOT_LIST_ERROR)
-    return homeworks[0]
+        raise TypeError(RESPONSE_NOT_LIST_ERROR.format(got=type(response)))
+    return homeworks
 
 
 def parse_status(homework):
     """Разбирает ответ API и формирует сообщение для отправки ботом."""
-    if 'homework_name' not in homework:
-        logger.error(NO_NAME_ERROR)
-        raise KeyError(NO_NAME_ERROR)
-
-    homework_name = homework.get('homework_name')
-
-    if 'status' not in homework:
-        logger.error(NO_STATUS_ERROR)
-        raise KeyError(NO_STATUS_ERROR)
-
-    homework_status = homework.get('status')
-
-    if homework_status not in HOMEWORK_STATUSES:
-        logger.error(UNKNOWN_STATUS_ERROR)
-        raise exceptions.ResponseStatusError(UNKNOWN_STATUS_ERROR)
-
-    verdict = HOMEWORK_STATUSES.get(homework_status)
-
+    homework_name = homework['homework_name']
+    homework_status = homework['status']
+    if homework_status not in VERDICTS:
+        raise KeyError(UNKNOWN_STATUS_ERROR.format(status=homework_status))
     return HW_STATUS_CHANGED.format(
-        homework_name=homework_name, verdict=verdict
+        homework_name=homework_name, verdict=VERDICTS.get(homework_status)
     )
 
 
 def check_tokens():
     """Проверяет переменные окружения."""
-    if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+    tokens = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
+    missed_tokens = []
+    for name in tokens:
+        if not globals()[name] or globals()[name] is None:
+            missed_tokens.append(name)
+    if missed_tokens:
+        logger.critical(ENV_SETUP_ERROR.format(tokens=missed_tokens))
         return False
     return True
 
@@ -148,28 +144,42 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        logger.critical(ENV_SETUP_ERROR)
-        raise exceptions.EnvironmentSetupError
-
+        raise KeyError
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
+    logger.info(BOT_STARTED)
     last_error_msg = ''
-
     while True:
         try:
             response = get_api_answer(current_timestamp)
-            send_message(bot, parse_status(check_response(response)))
-            current_timestamp = response.get('current_date')
-            time.sleep(RETRY_TIME)
-
+            homeworks = check_response(response)
+            if homeworks:
+                for homework in homeworks:
+                    parse_status(homework)
+                    send_message(bot, parse_status(homework))
+                    current_timestamp = response.get(
+                        'current_date', current_timestamp
+                    )
         except Exception as error:
             message = ERROR.format(error=error)
-            logger.error(message)
+            logger.exception(message)
             if message != last_error_msg:
-                last_error_msg = message
                 send_message(bot, message)
+                last_error_msg = message
+        finally:
             time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        format=(
+            '%(asctime)s - %(name)s - %(levelname)s: %(funcName)s() l:'
+            '%(lineno)d - %(message)s'
+        ),
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(__file__ + '.log', encoding='UTF-8'),
+        ],
+        level=logging.INFO,
+    )
     main()

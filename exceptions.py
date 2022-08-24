@@ -1,12 +1,8 @@
-class EnvironmentSetupError(Exception):
-    """Ошибка в конфигурации переменных окружения"""
+class RequestError(Exception):
+    """Ошибка при отправке запроса к сервису ЯП."""
 
 
-class ResponseStatusError(Exception):
-    """Ошибка в статусе домашней работы."""
-
-
-class HTTPError(Exception):
+class StatusCodeError(Exception):
     """Ошибка доступа к сервису ЯП."""
 
 
@@ -20,3 +16,7 @@ class ApiResponseNotListError(Exception):
 
 class ApiResponseError(Exception):
     """Ошибка в данных сервиса ЯП."""
+
+
+class DenyOfServiceError(Exception):
+    """Отказ в обслуживании от ендпоинта."""

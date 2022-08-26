@@ -67,14 +67,14 @@ def send_message(bot, message):
         logger.info(
             SUCCESS_SEND.format(chat_id=TELEGRAM_CHAT_ID, message=message)
         )
+        return True
     except Exception as error:
         logger.exception(
             ERROR_SEND.format(
                 chat_id=TELEGRAM_CHAT_ID, message=message, error=error
             )
         )
-    else:
-        return True
+        return False
 
 
 def get_api_answer(current_timestamp):

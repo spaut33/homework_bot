@@ -73,7 +73,8 @@ def send_message(bot, message):
                 chat_id=TELEGRAM_CHAT_ID, message=message, error=error
             )
         )
-    return True
+    else:
+        return True
 
 
 def get_api_answer(current_timestamp):
@@ -156,7 +157,7 @@ def main():
         except Exception as error:
             message = ERROR.format(error=error)
             logger.exception(message)
-            if send_message(bot, message) and message != last_error:
+            if message != last_error and send_message(bot, message):
                 last_error = message
         finally:
             time.sleep(RETRY_TIME)

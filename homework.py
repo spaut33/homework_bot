@@ -132,7 +132,7 @@ def check_tokens() -> bool:
     missed_tokens = [name for name in TOKENS if not globals()[name]]
     if missed_tokens:
         logger.critical(MISSED_TOKENS.format(tokens=missed_tokens))
-    return not bool(missed_tokens)
+    return not missed_tokens
 
 
 def main():

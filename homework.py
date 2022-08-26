@@ -73,6 +73,7 @@ def send_message(bot, message):
                 chat_id=TELEGRAM_CHAT_ID, message=message, error=error
             )
         )
+    return True
 
 
 def get_api_answer(current_timestamp):
@@ -126,13 +127,12 @@ def parse_status(homework):
     )
 
 
-def check_tokens():
+def check_tokens() -> bool:
     """Проверяет переменные окружения."""
     missed_tokens = [name for name in TOKENS if not globals()[name]]
     if missed_tokens:
         logger.critical(MISSED_TOKENS.format(tokens=missed_tokens))
-    else:
-        return True
+    return not bool(missed_tokens)
 
 
 def main():
@@ -142,7 +142,7 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     logger.info(BOT_STARTED)
-    last_error_message = ''
+    last_error = ''
     while True:
         try:
             response = get_api_answer(current_timestamp)
@@ -156,9 +156,8 @@ def main():
         except Exception as error:
             message = ERROR.format(error=error)
             logger.exception(message)
-            if message != last_error_message:
-                if send_message(bot, message):
-                    last_error_message = message
+            if send_message(bot, message) and message != last_error:
+                last_error = message
         finally:
             time.sleep(RETRY_TIME)
 

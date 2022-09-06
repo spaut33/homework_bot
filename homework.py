@@ -143,7 +143,7 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     logger.info(BOT_STARTED)
-    last_error = ''
+    last_error = None
     while True:
         try:
             response = get_api_answer(current_timestamp)
